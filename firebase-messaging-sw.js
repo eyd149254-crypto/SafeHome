@@ -12,25 +12,32 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-// Background
+// Background (Firebase handler)
 messaging.onBackgroundMessage((payload) => {
   console.log("[SW] Background message reçu:", payload);
   self.registration.showNotification(
     payload.notification?.title || "Alerte",
     {
-      body: payload.notification?.body || "",
-      icon: "/static/icon.png",
-      badge: "/static/icon.png"
+      body: payload.notification?.body || ""
     }
   );
 });
 
-// Foreground aussi via SW
+// Push brut (foreground + fallback)
 self.addEventListener("push", (event) => {
-  console.log("[SW] Push reçu:", event);
-  const data = event.data?.json() || {};
-  const title = data.notification?.title || "Alerte";
-  const body  = data.notification?.body  || "";
+  console.log("[SW] Push reçu:", event.data?.text());
+
+  let title = "Alerte";
+  let body  = "";
+
+  try {
+    const data = event.data?.json();
+    title = data?.notification?.title || data?.title || "Alerte";
+    body  = data?.notification?.body  || data?.body  || "";
+  } catch (e) {
+    title = event.data?.text() || "Alerte";
+  }
+
   event.waitUntil(
     self.registration.showNotification(title, { body })
   );
