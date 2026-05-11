@@ -12,24 +12,26 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Background
 messaging.onBackgroundMessage((payload) => {
-
-  console.log(
-    "[firebase-messaging-sw.js] Background message ",
-    payload
-  );
-
-  const notificationTitle =
-    payload.notification?.title || "Alerte";
-
-  const notificationOptions = {
-    body:
-      payload.notification?.body || "Nouvelle alerte",
-    icon: "/static/icon.png"
-  };
-
+  console.log("[SW] Background message reçu:", payload);
   self.registration.showNotification(
-    notificationTitle,
-    notificationOptions
+    payload.notification?.title || "Alerte",
+    {
+      body: payload.notification?.body || "",
+      icon: "/static/icon.png",
+      badge: "/static/icon.png"
+    }
+  );
+});
+
+// Foreground aussi via SW
+self.addEventListener("push", (event) => {
+  console.log("[SW] Push reçu:", event);
+  const data = event.data?.json() || {};
+  const title = data.notification?.title || "Alerte";
+  const body  = data.notification?.body  || "";
+  event.waitUntil(
+    self.registration.showNotification(title, { body })
   );
 });
