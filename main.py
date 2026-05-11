@@ -38,12 +38,18 @@ app.add_middleware(
 
 if not firebase_admin._apps:
 
-    # Sur Railway : FIREBASE_CREDENTIALS contient le JSON complet en string
     firebase_json = os.environ.get("FIREBASE_CREDENTIALS")
 
     if firebase_json:
         # Production (Railway) : on lit depuis la variable d'env
         cred_dict = json.loads(firebase_json)
+
+        # Correction des \n dans la clé privée (problème courant Railway)
+        if "private_key" in cred_dict:
+            cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
+
+        print("🔑 Private key preview:", cred_dict["private_key"][:60])
+
         cred = credentials.Certificate(cred_dict)
     else:
         # Local : on lit depuis le fichier JSON
