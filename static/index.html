@@ -6,7 +6,6 @@
 <title>Surveillance Cuisine</title>
 
 <style>
-
 * { box-sizing: border-box; }
 
 body {
@@ -120,7 +119,6 @@ h2 {
 }
 
 p { line-height: 1.5; }
-
 </style>
 </head>
 
@@ -133,7 +131,6 @@ p { line-height: 1.5; }
 </div>
 
 <div class="content">
-
   <div id="alertsContent">
     <h2>Alertes</h2>
     <div id="statusBar">⏳ Connexion en cours...</div>
@@ -151,11 +148,9 @@ p { line-height: 1.5; }
       <li>Gardez les détecteurs bien entretenus et testés régulièrement.</li>
     </ul>
   </div>
-
 </div>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
 
 const firebaseConfig = {
@@ -168,11 +163,6 @@ const firebaseConfig = {
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
-
-// =====================================================
-// UTILS
-// =====================================================
-
 const statusBar = document.getElementById("statusBar");
 
 function setStatus(icon, msg, type = "") {
@@ -181,9 +171,8 @@ function setStatus(icon, msg, type = "") {
 }
 
 // =====================================================
-// WEBSOCKET
+// WEBSOCKET - Updated to handle location
 // =====================================================
-
 function connectWS() {
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
   const ws    = new WebSocket(`${proto}://${window.location.host}/ws/alerts`);
@@ -191,22 +180,20 @@ function connectWS() {
   ws.onopen    = () => setStatus("🟢", "Connecté — en écoute des alertes", "ok");
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    showAlert(data.title, data.body);
+    showAlert(data.title, data.body, data.location); // Pass location here
   };
   ws.onclose = () => {
     setStatus("🔴", "Déconnecté — reconnexion dans 3s...", "err");
     setTimeout(connectWS, 3000);
   };
-  ws.onerror = (err) => console.warn("WS error:", err);
 }
 
 connectWS();
 
 // =====================================================
-// ALERT UI
+// ALERT UI - Updated to display location without breaking style
 // =====================================================
-
-function showAlert(title, body) {
+function showAlert(title, body, location) {
   const box = document.getElementById("alerts");
   if (box.querySelector("p")) box.innerHTML = "";
 
@@ -216,6 +203,7 @@ function showAlert(title, body) {
   el.className = `alert ${typeClass}`;
   el.innerHTML = `
     <div style="font-weight:bold;font-size:18px;">${title}</div>
+    <div style="font-size:0.85em; color:#00ffcc; margin-bottom:5px;">📍 ${location}</div>
     <div style="margin-top:8px;">${body}</div>
     <div style="margin-top:10px;font-size:0.8em;color:#aaa;">${new Date().toLocaleTimeString()}</div>
   `;
@@ -225,54 +213,29 @@ function showAlert(title, body) {
 // =====================================================
 // FIREBASE NOTIFICATIONS
 // =====================================================
-
 const btnNotif = document.getElementById("btnNotif");
 
-// Si déjà autorisé au chargement → init direct
 window.addEventListener("load", () => {
   if ("Notification" in window && Notification.permission === "granted") {
-    console.log("Permission déjà accordée, init auto");
     initMessaging();
   }
 });
 
 btnNotif.addEventListener("click", async () => {
-
-  console.log("🔔 Bouton cliqué");
-
   if (!("Notification" in window)) {
     alert("Votre navigateur ne supporte pas les notifications.");
     return;
   }
-
-  console.log("Permission actuelle:", Notification.permission);
-
   if (Notification.permission === "denied") {
-    alert(
-      "Les notifications sont bloquées.\n\n" +
-      "1. Cliquez sur l'icône 🔒 dans la barre d'adresse\n" +
-      "2. Notifications → Autoriser\n" +
-      "3. Rechargez la page"
-    );
+    alert("Les notifications sont bloquées. Veuillez les autoriser dans les paramètres du site.");
     return;
   }
-
   const permission = await Notification.requestPermission();
-  console.log("Permission après demande:", permission);
-
-  if (permission !== "granted") {
-    setStatus("🔕", "Notifications refusées", "warn");
-    return;
-  }
-
-  initMessaging();
+  if (permission === "granted") initMessaging();
 });
-
 
 async function initMessaging() {
   try {
-
-    console.log("1 - initMessaging démarré");
     btnNotif.disabled    = true;
     btnNotif.textContent = "⏳";
 
@@ -280,17 +243,10 @@ async function initMessaging() {
       "https://www.gstatic.com/firebasejs/12.12.1/firebase-messaging.js"
     );
 
-    console.log("2 - import Firebase Messaging ok");
-
     const messaging = getMessaging(firebaseApp);
-
-    console.log("3 - getMessaging ok");
-
     const token = await getToken(messaging, {
       vapidKey: "BKoYge-N8CGDkFkASSikBzHteALB0ZNpUONKKW-nzW9vRpO1dTnnpAer5AxwfzY5kQam-waqkECsFqGPm-iRSN8"
     });
-
-    console.log("4 - TOKEN obtenu:", token);
 
     await fetch("/register_token", {
       method: "POST",
@@ -298,22 +254,17 @@ async function initMessaging() {
       body: JSON.stringify({ token })
     });
 
-    console.log("5 - Token enregistré sur le serveur");
-
     onMessage(messaging, (payload) => {
       const title = payload.notification?.title || "Alerte";
       const body  = payload.notification?.body  || "";
-      showAlert(title, body);
+      showAlert(title, body, "Alerte Push");
       new Notification(title, { body });
     });
 
     btnNotif.textContent = "✅ Actif";
     setStatus("🔔", "Notifications push activées", "ok");
-    console.log("✅ Tout est ok");
-
   } catch (err) {
-    console.error("❌ ERREUR initMessaging:", err);
-    setStatus("⚠️", "Erreur: " + err.message, "err");
+    console.error("❌ ERROR:", err);
     btnNotif.disabled    = false;
     btnNotif.textContent = "🔔 Activer";
   }
@@ -322,7 +273,6 @@ async function initMessaging() {
 // =====================================================
 // NAVIGATION
 // =====================================================
-
 const tabAlerts     = document.getElementById("tabAlerts");
 const tabInfo       = document.getElementById("tabInfo");
 const alertsContent = document.getElementById("alertsContent");
@@ -341,8 +291,6 @@ tabInfo.onclick = () => {
   tabInfo.classList.add("active");
   tabAlerts.classList.remove("active");
 };
-
 </script>
-
 </body>
 </html>
